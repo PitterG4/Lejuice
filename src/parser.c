@@ -1,6 +1,9 @@
 #include "types.h"
 #include <string.h>
 
+
+
+/* 
 void parse(const char *filepath, FilenameInfo *info, ConversionRule *file) {
     int len_escape = (int)strlen(file->escape_seq);
     char* dot = strrchr(filepath, '.');
@@ -56,3 +59,4 @@ void parse(const char *filepath, FilenameInfo *info, ConversionRule *file) {
     }
 
 }
+*/
