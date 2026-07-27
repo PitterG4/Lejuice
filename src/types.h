@@ -12,9 +12,9 @@
 // Watcher.c
 typedef struct {
     char old_filepath[MAX_PATH_LEN];
-    char old_filename[MAX_FILENAME_LEN]
+    char old_filename[MAX_FILENAME_LEN];
     char new_filepath[MAX_PATH_LEN];
-    char new_filename[MAX_FILENAME_LEN]
+    char new_filename[MAX_FILENAME_LEN];
 } FileEvent;
 
 // Parser.c
@@ -24,7 +24,7 @@ typedef struct {
     char inline_params[MAX_PARAMS_LEN]; // O que está nas chaves
     
     bool is_valid_change;   // true se a extensão realmente mudou
-} FilenameInfo;
+} FileInfo;
 
 // Config.c
 typedef struct {
