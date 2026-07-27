@@ -10,8 +10,7 @@ extern void parse_file_event(FileEvent *event);
 
 bool is_valid_event(struct inotify_event* event) {
     if (event->len == 0 || event->name[0] == '\0') return false;
-    if (event->mask & IN_ISDIR) return false; // folder verification
-    if (event->name[0] == '.') return false;  // hidden item verification
+    if (event->name[0] == '.') return false;  // hidden file verification
     
     return true;
 }
@@ -23,7 +22,7 @@ void run_inotify_watcher(const char* user_dir) {
     }
 
     printf("Starting to watch \"%s\" for renames...\n", user_dir);
-    if (!inotifytools_watch_recursively(user_dir, IN_MOVE)) {
+    if (!inotifytools_watch_recursively(user_dir, IN_MOVE | IN_CREATE)) {
         fprintf(stderr, "Error: Could not watch directory \"%s\".\n%s\n", user_dir, strerror(inotifytools_error()));
         return;
     }
@@ -41,6 +40,16 @@ void run_inotify_watcher(const char* user_dir) {
         if (!dir_path) continue;
 
         if (!is_valid_event(event)) continue;
+        
+        if (event->mask & IN_ISDIR) {
+            if (event->mask & IN_CREATE) {
+                char new_dir[MAX_PATH_LEN];
+
+                snprintf(new_dir, MAX_PATH_LEN, "%s%s/", dir_path, event->name);
+                inotifytools_watch_recursively(new_dir, IN_MOVE | IN_CREATE);
+            }
+            continue; 
+        }
 
         if (event->mask & IN_MOVED_FROM) {
             snprintf(pending_old_filepath, MAX_PATH_LEN, "%s%s", dir_path, event->name);
@@ -66,7 +75,7 @@ void run_inotify_watcher(const char* user_dir) {
 }
 
 void run_fanotify_watcher(const char* user_dir) {
-    printf("Fanotify is not implemented yet for \"%s\".\n", user_dir);
+    printf("WIP.");
 }
 
 // 0 -> Inotify | 1 -> Fanotify
