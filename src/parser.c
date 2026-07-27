@@ -1,62 +1,39 @@
 #include "types.h"
 #include <string.h>
+#include <stdbool.h>
 
+void parse_file_event(FileEvent *file_event) { //WIP
 
+    // 1st layer: the name/path changed?
+    if (strcmp(file_event->old_filename, file_event->new_filename) == 0) return;
 
-/* 
-void parse(const char *filepath, FilenameInfo *info, ConversionRule *file) {
-    int len_escape = (int)strlen(file->escape_seq);
-    char* dot = strrchr(filepath, '.');
+    char* old_dot = strrchr(file_event->old_filename, '.');
+    char* new_dot = strrchr(file_event->new_filename, '.');
 
-    char* slash = strrchr(filepath, '/');
-    char* name_start = (slash != NULL) 
-        ? (slash + 1) 
-        : (char*)filepath;
+    // 2nd layer: are both files extension-less?
+    if (old_dot == NULL && new_dot == NULL) return;
 
-    int name_size; // Tamanho do nome base
-    if (dot != NULL && dot > name_start) {
-        name_size = (int)(dot - name_start);
-    } else {
-        name_size = (int)strlen(name_start);
-    }
-    
-    if (name_size >= MAX_FILENAME_LEN) {
-        name_size = MAX_FILENAME_LEN - 1;
-    }
-    
-    strncpy(info->base_name, name_start, name_size);
-    info->base_name[name_size] = '\0';
-
-    if (dot != NULL) {
-        if (*(dot - 1) == '}') {
-        char* brace_start = strchr(name_start, '{');
-        char* brace_end = strrchr(name_start, '}');
-        
-            if (brace_start != NULL && 
-                brace_start < brace_end) {
-                int param_size = (int)(brace_end - (brace_start + 1));
-                strncpy(info->inline_params, brace_start + 1, param_size);
-                info->inline_params[param_size] = '\0';
-
-                strncpy(info->base_name, name_start, (int)(name_size - param_size - 2));
-                info->base_name[(int)(name_size - param_size - 2)] = '\0';
-            }
-        }
-
-        // Primeimro declara a extensão antiga
-        if (info->old_ext[0] == '\0') { 
-            strncpy(info->old_ext, dot + 1, MAX_EXT_LEN - 1);
-            info->old_ext[MAX_EXT_LEN - 1] = '\0';
-
-        // Depois declara a extensão nova
-        } else if (info->new_ext[0] == '\0' && info->old_ext[0] != '\0') { 
-            strncpy(info->new_ext, dot + 1, MAX_EXT_LEN - 1);
-            info->new_ext[MAX_EXT_LEN - 1] = '\0';
-
-            if (strcmp(info->new_ext, info->old_ext) != 0)
-                info->is_valid_change = true;
+    // 3rd layer: are both extension equals?
+    if (old_dot != NULL && new_dot != NULL) {
+        if (strcmp(old_dot + 1, new_dot + 1) == 0) {
+            return;
         }
     }
+
+    FileInfo info = {0};
+
+    if (new_dot != NULL && new_dot > file_event->new_filename && *(new_dot - 1) == '}') {
+        char* brace_start = strchr(file_event->new_filename, '{');
+        char* brace_end = new_dot - 1;
+
+        if (brace_start != NULL && brace_start < brace_end) {
+            int param_size = brace_end - (brace_start + 1);
+            snprintf(info.inline_params, MAX_PARAMS_LEN, "%.*s", param_size, brace_start + 1);
+        }
+    }
+
+    if (old_dot != NULL) snprintf(info.old_ext, MAX_EXT_LEN, "%s", old_dot + 1);
+    if (new_dot != NULL) snprintf(info.new_ext, MAX_EXT_LEN, "%s", new_dot + 1);
+
 
 }
-*/
