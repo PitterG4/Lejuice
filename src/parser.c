@@ -1,6 +1,8 @@
 #include "types.h"
+#include "config.c"
 #include <string.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 void parse_file_event(FileEvent *file_event) { //WIP
 
@@ -13,19 +15,19 @@ void parse_file_event(FileEvent *file_event) { //WIP
     // 2nd layer: are both files extension-less?
     if (old_dot == NULL && new_dot == NULL) return;
 
+    char* brace_start = strchr(file_event->new_filename, '{');
+    char* brace_end = strchr(file_event->new_filename, '}');
+
     // 3rd layer: are both extension equals?
     if (old_dot != NULL && new_dot != NULL) {
         if (strcmp(old_dot + 1, new_dot + 1) == 0) {
-            return;
+            if (brace_start == NULL || brace_end == NULL) return;
         }
     }
 
     FileInfo info = {0};
 
     if (new_dot != NULL && new_dot > file_event->new_filename && *(new_dot - 1) == '}') {
-        char* brace_start = strchr(file_event->new_filename, '{');
-        char* brace_end = new_dot - 1;
-
         if (brace_start != NULL && brace_start < brace_end) {
             int param_size = brace_end - (brace_start + 1);
             snprintf(info.inline_params, MAX_PARAMS_LEN, "%.*s", param_size, brace_start + 1);
