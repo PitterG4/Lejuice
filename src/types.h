@@ -22,8 +22,6 @@ typedef struct {
     char old_ext[MAX_EXT_LEN];
     char new_ext[MAX_EXT_LEN];
     char inline_params[MAX_PARAMS_LEN];
-    
-    bool is_valid_change;
 } FileInfo;
 
 // Config.c
@@ -33,7 +31,7 @@ typedef struct {
 } Macro;
 
 typedef struct {
-    char name[16];
+    char name[MAX_FILENAME_LEN];
     Macro *macros;
 } ToolConfig;
 
