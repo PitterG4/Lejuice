@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-void parse_file_event(FileEvent *file_event) { //WIP
+void parse_file_event(FileEvent *file_event) { // WIP
 
     // 1st layer: the name/path changed?
     if (strcmp(file_event->old_filename, file_event->new_filename) == 0) return;
@@ -36,6 +36,4 @@ void parse_file_event(FileEvent *file_event) { //WIP
 
     if (old_dot != NULL) snprintf(info.old_ext, MAX_EXT_LEN, "%s", old_dot + 1);
     if (new_dot != NULL) snprintf(info.new_ext, MAX_EXT_LEN, "%s", new_dot + 1);
-
-
 }
