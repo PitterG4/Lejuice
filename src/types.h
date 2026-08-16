@@ -39,6 +39,7 @@ typedef struct {
     char from_ext[MAX_EXT_LEN];         
     char to_ext[MAX_EXT_LEN];
     char command_template[MAX_CMD_LEN];
+    char tool_name_temp[MAX_FILENAME_LEN];
     ToolConfig *tool;
 } ConversionRule;
 
