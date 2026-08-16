@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// Aqui vai ficar a lógica do CLI
+// CLI logic
 int main(int argc, char **argv) {
     
     if (argc > 1) {
