@@ -171,7 +171,6 @@ Config load_config(const char *filepath, ReturnCode *status) {
             }
         }
     }
-
     qsort(config.rules, num_rules, sizeof(Rules), comp_str);
     fclose(ini);
 
