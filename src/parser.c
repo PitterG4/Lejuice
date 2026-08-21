@@ -1,22 +1,19 @@
 #include "types.h"
 #include "config.c"
-#include <string.h>
-#include <stdbool.h>
-#include <stdlib.h>
 
-void parse_file_event(FileEvent *file_event) { // WIP
+static void parse_file_event(const FileEvent *file_event) { // WIP
 
     // 1st layer: the name/path changed?
     if (strcmp(file_event->old_filename, file_event->new_filename) == 0) return;
 
-    char* old_dot = strrchr(file_event->old_filename, '.');
-    char* new_dot = strrchr(file_event->new_filename, '.');
+    char *old_dot = strrchr(file_event->old_filename, '.');
+    char *new_dot = strrchr(file_event->new_filename, '.');
 
     // 2nd layer: are both files extension-less?
     if (old_dot == NULL && new_dot == NULL) return;
 
-    char* brace_start = strchr(file_event->new_filename, '{');
-    char* brace_end = strchr(file_event->new_filename, '}');
+    char *brace_start = strchr(file_event->new_filename, '{');
+    char *brace_end = strchr(file_event->new_filename, '}');
 
     // 3rd layer: are both extension equals?
     if (old_dot != NULL && new_dot != NULL) {
