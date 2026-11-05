@@ -14,7 +14,7 @@ main.c        →   main.exe
 
 The limits are somewhere between your imagination and what's not implemented yet -- yet!
 
-⚠️ **PS:** This is an early Windows prototype. The syntax and behavior are still evolving, so please proceed with caution! 🫡
+⚠️ **PS:** This is an early Windows prototype. The syntax and behavior are still evolving. Thanks! 🫡
 
 ## What does it do?
 
