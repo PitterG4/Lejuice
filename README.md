@@ -1,6 +1,6 @@
 # Lejuice 🍉
 
-Lejuice is a rename-driven tool that watches your filesystem and does... well, whatever your terminal is able to! Meant to be local, lightweight, modular and extensible. Did I mention fast?
+It's a rename-driven tool that watches your filesystem and does... well, whatever your terminal is able to! Meant to be local, lightweight, modular and extensible. Did I mention fast?
 
 Convert photos, extract audio, turn notes into slides or compile code into an executable. All by renaming the file:
 
@@ -14,7 +14,7 @@ main.c        →   main.exe
 
 The limits are somewhere between your imagination and what's not implemented yet -- yet!
 
-⚠️ **PS:** This is an early Windows prototype. The syntax and behavior are still evolving, so please proceed with caution, guys! 🫡
+⚠️ **PS:** This is an early Windows prototype. The syntax and behavior are still evolving, so please proceed with caution! 🫡
 
 ## What does it do?
 
