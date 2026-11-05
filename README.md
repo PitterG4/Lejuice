@@ -2,7 +2,7 @@
 
 Lejuice it's a rename-driven tool that watches your filesystem and does... well, whatever your terminal is able to! Meant to be local, lightweight, modular and extensible. Did I mention fast?
 
-You can convert photos, extract audio, turn notes into slides or compile code into an executable. All by renaming the file:
+Convert photos, extract audio, turn notes into slides or compile code into an executable. All by renaming the file:
 
 ```text
 photo.webp    →   photo.png
@@ -13,6 +13,8 @@ main.c        →   main.exe
 <sub>(Yes, you'll finally be able to convert a png into a jpeg. Revolutionary.)</sup>
 
 The limits are somewhere between your imagination and what's not implemented yet -- yet!
+
+⚠️ PS: Lejuice is an early Windows prototype. Configuration syntax and behavior are still evolving. Be careful! 🫡
 
 ## What does it do?
 
