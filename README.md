@@ -5,7 +5,7 @@ It's a rename-driven tool that watches your filesystem and does... well, whateve
 Convert photos, extract audio, turn notes into slides or compile code into an executable. All by renaming the file:
 
 ```text
-photo.png     →   photo{85q}.webp
+photo.png     →   photo{85q}.jpg
 music.mp4     →   music.mp3
 my_notes.md   →   my_notes.pptx
 main.c        →   main.exe
@@ -33,9 +33,9 @@ gray   = -colorspace Gray
 {VAR}q = -quality {VAR}
 ```
 
-Then you can rename `vacation.png` to `vacation{gray, 85q}.jpg`.
+Then you can rename `photo.png` to `photo{gray, 85q}.jpg`.
 
-Lejuice will turn this into `magick "vacation.png" -colorspace Gray -quality 85 "vacation.jpg"`.
+Lejuice will turn this into `magick "photo.png" -colorspace Gray -quality 85 "photo.jpg"`.
 
 And... *voilà!* You have your file.
 
