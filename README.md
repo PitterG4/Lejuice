@@ -5,12 +5,12 @@ It's a rename-driven tool that watches your filesystem and does... well, whateve
 Convert photos, extract audio, turn notes into slides or compile code into an executable. All by renaming the file:
 
 ```text
-photo.webp    →   photo.png
+photo.png     →   photo{85q}.webp
 music.mp4     →   music.mp3
 my_notes.md   →   my_notes.pptx
 main.c        →   main.exe
 ```
-<sub>(Yes, you'll finally be able to convert a png into a jpeg. Revolutionary.)</sup>
+<sup><sub>(Yes, you'll finally be able to convert a png into a jpeg. Revolutionary.)</sub></sup>
 
 The limits are somewhere between your imagination and what's not implemented yet -- yet!
 
@@ -42,13 +42,16 @@ And... *voilà!* You have your file.
 ## Your files, your rules
 
 I know what you may be thinking.
-"Okay, a background tool that isn't supposed to stop running. Are you sure it won't explode my files?"
+> "Okay, a background tool that isn't supposed to stop running. Are you sure it won't explode my files?"
 
-Great question! Am i. You choose which conversions are enabled and which tools run. Lejuice also gives you control over the originals:
+Great question! I'm paranoid about it too.
 
-- **Your originals have a destination.** Choose to keep them or send them to the Recycle Bin after conversion.
-- **It won't overwrite accidentally.** If `photo.jpg` already exists in the folder, your new file automatically becomes `photo (1).jpg`.
-- **Skip a rename event!** Start the new filename with `!` or other custom character to bypass processing. Lejuice removes the prefix for you.
+You choose which conversions are enabled and which tools run. Lejuice also gives you control over the originals:
+
+- **Your originals have a destination.** Choose to keep them or send them to the Recycle Bin after conversion;
+- **Failed conversions don't break anything.** If a command fails mid-way, your original file simply reverts to its original name;
+- **It won't overwrite accidentally.** If `photo.jpg` already exists in the folder, your new file automatically becomes `photo (1).jpg`;
+- **Skip a rename event!** Start the new filename with `!` or another custom character to bypass processing. Lejuice removes the prefix for you.
 
 ---
 *Made with love. Powered by vitamin C.*
