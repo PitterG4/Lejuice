@@ -295,36 +295,48 @@ int comp_tools(const void *a, const void *b)
     return strcmp(tool_a->name, tool_b->name);
 }
 
+int group_macro(const Macros *macro)
+{
+    if (!macro->has_var)          return 0; // Pure: xy
+
+    bool has_prefix = macro->key_1st[0] != '\0';
+    bool has_suffix = macro->key_2nd[0] != '\0';
+
+    if (has_prefix && has_suffix) return 1; // Mixed: x{VAR}y
+    if (has_prefix)               return 2; // Prefix: x{VAR}
+    if (has_suffix)               return 3; // Suffix: {VAR}y
+
+    return 4; // Only variable: {VAR}
+}
+int comp_half(const char *a, const char *b)
+{
+    size_t len_a = strlen(a);
+    size_t len_b = strlen(b);
+
+    // Sort by length
+    if (len_a > len_b) return -1;
+    if (len_a < len_b) return 1;
+
+    // Sort alphabetically
+    return strcmp(a, b);
+}
 int comp_macros(const void *a, const void *b)
 {
     const Macros *macro_a = (const Macros*) a;
     const Macros *macro_b = (const Macros*) b;
 
-    if (macro_a->has_var == macro_b->has_var) {
-        if (macro_a->has_var == false) {
-            return strcmp(macro_a->key, macro_b->key);
-        }
+    int group_a = group_macro(macro_a);
+    int group_b = group_macro(macro_b);
 
-        if (macro_a->has_var == true) {
-            if (macro_a->key_1st[0] == '\0') return -1;
-            if (macro_b->key_1st[0] == '\0') return 1;
+    if (group_a < group_b) return -1;
+    if (group_a > group_b) return 1;
 
-            const int cmp = strcmp(macro_a->key_1st, macro_b->key_1st);
-            if (cmp != 0) return cmp;
+    if (group_a == 0) return strcmp(macro_a->key, macro_b->key);
 
-            if (macro_a->key_2nd[0] == '\0') return -1;
-            if (macro_b->key_2nd[0] == '\0') return 1;
+    int cmp = comp_half(macro_a->key_1st, macro_b->key_1st);
+    if (cmp != 0) return cmp;
 
-            return strcmp(macro_a->key_2nd, macro_b->key_2nd);
-        }
-    }
-
-    if (macro_a->has_var != macro_b->has_var) {
-        if (macro_a->has_var == true) return 1;
-        if (macro_a->has_var == false) return -1;
-    }
-
-    return 0;
+    return comp_half(macro_a->key_2nd, macro_b->key_2nd);
 }
 
 void sort_config_file()
