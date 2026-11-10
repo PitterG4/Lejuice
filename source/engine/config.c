@@ -14,6 +14,7 @@ void free_config_struct()
     free(config.tools);
     free(config.macros);
 }
+
 void set_config_default()
 {
     char install_path[MAX_PATH_LEN];
@@ -28,6 +29,7 @@ void set_config_default()
     config.global.log       = FLAG_DEFAULT;
     config.global.notify    = FLAG_DEFAULT;
 }
+
 Section section_search(const char *line, Section current)
 {
     if (STARTS_WITH(line, "[watcher]"))         return SEC_WATCHER;
@@ -44,6 +46,7 @@ Section section_search(const char *line, Section current)
 
     return current;
 }
+
 uint32_t set_event_flag(char *value)
 {
     uint32_t mask = 0;
@@ -91,6 +94,7 @@ MacroAction set_macro_tag(const char *token)
 
     return MAC_NONE;
 }
+
 bool set_properties(const char *key, char *value, Rules *rule)
 {
     Profile *target;
@@ -137,6 +141,7 @@ bool set_properties(const char *key, char *value, Rules *rule)
 
     return false;
 }
+
 bool parse_property_line(char *line, Rules *rule)
 {
     char *equal = strchr(line, '=');
@@ -153,6 +158,7 @@ bool parse_property_line(char *line, Rules *rule)
 
     return set_properties(key_part, value_part, rule);
 }
+
 bool parse_rule_line(char *line, Rules *rule)
 {
     char *colon = strchr(line, ':');
@@ -174,6 +180,7 @@ bool parse_rule_line(char *line, Rules *rule)
 
     return false;
 }
+
 bool parse_macro_line(char *line, Macros *macro)
 {
     char *equal = strchr(line, '=');
