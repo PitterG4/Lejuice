@@ -19,14 +19,10 @@ extern struct Config config;
 
 // to main.c
 typedef enum {
-    CMD_RUN,
-    CMD_STOP,
-    CMD_WATCH,
-    CMD_SETUP,
-    CMD_STATUS,
-    CMD_CHECK,
-    CMD_HELP,
-    CMD_UNKNOWN,
+    CMD_RUN,    CMD_STOP,
+    CMD_WATCH,  CMD_SETUP,
+    CMD_STATUS, CMD_CHECK,
+    CMD_HELP,   CMD_UNKNOWN,
 } Command;
 
 typedef enum tag {
@@ -50,11 +46,9 @@ typedef enum tag {
 
 typedef enum {
     SEC_NONE,
-    SEC_WATCHER,
-    SEC_ACTIONS,
-    SEC_EVENTS,
-    SEC_RULES,
-    SEC_MACROS,
+    SEC_WATCHER, SEC_PARSER,
+    SEC_ACTIONS, SEC_EVENTS,
+    SEC_RULES,   SEC_MACROS,
 } Section;
 
 typedef enum {
@@ -141,7 +135,7 @@ typedef struct {
 
     // Actions
     uint32_t replace        : 2;
-    uint32_t unknown_macro  : 2;
+    uint32_t macro_match    : 2;
 
     uint32_t is_local       : 1;
     uint32_t reserved       : 9;
