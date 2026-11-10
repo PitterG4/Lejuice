@@ -71,23 +71,40 @@ typedef enum {
     FLAG_DEFAULT = (FLAG_SYS | FLAG_TASK_ERROR),
 } EventFlag;
 
-// REP_NONE/UNK_NONE is -4 to handle errors
-// If not treated it'll become 0 (default) when converted to uint32_t 2 bits
+// [___]_ERROR are negative nums to handle errors
+// If not treated it'll become the 'default num' when converted to uint32_t 2 bits
 typedef enum {
     REP_TRASH       = 0,
     REP_KEEP        = 1,
     REP_ASK         = 2,
 
-    REP_NONE        = -4,
+    REP_ERROR        = -4, // 0
 } ReplaceAction;
+
+typedef enum {
+    FALL_NONE       = 0,
+    FALL_ACTIVE     = 1,
+    FALL_ORIGINAL   = 2,
+
+    FALL_ERROR      = -4, // 0
+} FallbackAction;
 
 typedef enum {
     MAC_STRICT      = 0,
     MAC_PREFIX      = 1,
     MAC_SUFFIX      = 2,
 
-    MAC_NONE         = -4,
-} MacroAction;
+    MAC_ERROR        = -4, // 0
+} MacroMatch;
+
+typedef enum {
+    SEP_SPACE   = 1 << 1,
+    SEP_COMMA   = 1 << 2,
+
+    SEP_DEFAULT = (SEP_SPACE | SEP_COMMA),
+
+    SEP_ERROR   = -1, // 3 (0000 0011)
+} ParamSeparator;
 
 typedef struct {
     // Watcher output to parser
@@ -135,7 +152,7 @@ typedef struct {
 
     // Actions
     uint32_t replace        : 2;
-    uint32_t macro_match    : 2;
+    uint32_t fallback       : 2;
 
     uint32_t is_local       : 1;
     uint32_t reserved       : 9;
@@ -192,6 +209,10 @@ typedef struct Config {
     char watch_dir[MAX_PATH_LEN];
     char escape_prefix[MAX_EXT_LEN];
     int queue_size;
+
+    uint8_t macro_match     : 2;
+    uint8_t param_separator : 2;
+    uint8_t reserved        : 4;
 
     Profile global;
 } Config;

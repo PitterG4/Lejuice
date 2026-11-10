@@ -212,7 +212,7 @@ Macros *find_pure_macro(Tools *tool, const char *token)
 
 // To understand this keep in mind how the macro are sorted:
 // [pure]->[prefix_only]->[mixed]->[suffix only]->[wildcard]
-Macros *translate_macro(const char *token, Tools *tool, MacroAction match_type, char *translated_token)
+Macros *translate_macro(const char *token, Tools *tool, MacroMatch match_type, char *translated_token)
 {
     if (tool == NULL) return NULL;
 
@@ -288,8 +288,8 @@ bool expand_macros(const char *input, Rules *rule, char *out_macros, char *out_t
             int flag = set_replace_tag(token + 1);
             if (flag >= 0) {rule->local.replace = flag; continue;}
 
-            flag = set_macro_tag(token + 1);
-            if (flag >= 0) {rule->local.macro_match = flag; continue;}
+            flag = set_macro_match_tag(token + 1);
+            if (flag >= 0) {rule->local.fallback = flag; continue;}
 
             return false;
         }
@@ -297,8 +297,8 @@ bool expand_macros(const char *input, Rules *rule, char *out_macros, char *out_t
         Macros *matched = NULL;
         char translated_token[MAX_CMD_LEN] = {0};
 
-        if (active_override != NULL) matched = translate_macro(token, active_override, rule->local.macro_match, translated_token);
-        if         (matched == NULL) matched = translate_macro(token, rule->tool, rule->local.macro_match, translated_token);
+        if (active_override != NULL) matched = translate_macro(token, active_override, config.macro_match, translated_token);
+        if         (matched == NULL) matched = translate_macro(token, rule->tool, config.macro_match, translated_token);
         if         (matched == NULL) return false; // TODO: DISPATCH_EVENT
 
         if (translated_token[0] == '@') {

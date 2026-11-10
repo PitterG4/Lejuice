@@ -26,6 +26,9 @@ void set_config_default()
     snprintf(config.escape_prefix, sizeof(config.escape_prefix), "%s", DEFAULT_ESCAPE_PREFIX);
     config.queue_size       = DEFAULT_QUEUE_SIZE;
 
+    config.param_separator = SEP_DEFAULT;
+    config.macro_match     = MAC_STRICT;
+
     config.global.log       = FLAG_DEFAULT;
     config.global.notify    = FLAG_DEFAULT;
 }
@@ -86,15 +89,38 @@ ReplaceAction set_replace_tag(const char *token)
     if (strcmp(token, "keep") == 0)         return REP_KEEP;
     if (strcmp(token, "ask") == 0)          return REP_ASK;
 
-    return REP_NONE;
+    return REP_ERROR;
 }
-MacroAction set_macro_tag(const char *token)
+FallbackAction set_fallback_tag(const char *token)
+{
+    if (strcmp(token, "none") == 0)         return FALL_NONE;
+    if (strcmp(token, "active") == 0)       return FALL_ACTIVE;
+    if (strcmp(token, "original") == 0)     return FALL_ORIGINAL;
+
+    return FALL_ERROR;
+}
+
+MacroMatch set_macro_match_tag(const char *token)
 {
     if (strcmp(token, "strict") == 0)       return MAC_STRICT;
     if (strcmp(token, "prefix") == 0)       return MAC_PREFIX;
     if (strcmp(token, "suffix") == 0)       return MAC_SUFFIX;
 
-    return MAC_NONE;
+    return MAC_ERROR;
+}
+ParamSeparator set_separator_tag(char *value)
+{
+    uint8_t mask = 0;
+    char *token = strtok(value, " ,");
+
+    while (token != NULL) {
+        if (strcmp(token, "space") == 0) mask |= SEP_SPACE;
+        if (strcmp(token, "comma") == 0) mask |= SEP_COMMA;
+
+        token = strtok(NULL, " ,");
+    }
+
+    return mask;
 }
 
 bool set_properties(const char *key, char *value, Rules *rule)
@@ -117,6 +143,16 @@ bool set_properties(const char *key, char *value, Rules *rule)
             snprintf(config.escape_prefix, MAX_EXT_LEN, "%s", value);
             return true;
         }
+
+        // Category: parser
+        if (strcmp(key, "macro_match") == 0) {
+            config.macro_match = set_macro_match_tag(value);
+            return true;
+        }
+        if (strcmp(key, "param_separator") == 0) {
+            config.param_separator = set_separator_tag(value);
+            return true;
+        }
     }
 
     else (target = &rule->local);
@@ -126,8 +162,8 @@ bool set_properties(const char *key, char *value, Rules *rule)
         target->replace = set_replace_tag(value);
         return true;
     }
-    if (strcmp(key, "macro_match") == 0) {
-        target->macro_match = set_macro_tag(value);
+    if (strcmp(key, "fallback") == 0) {
+        target->fallback = set_macro_match_tag(value);
         return true;
     }
 
