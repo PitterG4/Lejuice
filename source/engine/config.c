@@ -85,11 +85,11 @@ ReplaceAction set_replace_tag(const char *token)
 }
 MacroAction set_macro_tag(const char *token)
 {
-    if (strcmp(token, "fail") == 0)         return UNK_FAIL;
-    if (strcmp(token, "pass") == 0)         return UNK_PASS;
-    if (strcmp(token, "ignore") == 0)       return UNK_IGNORE;
+    if (strcmp(token, "strict") == 0)       return MAC_STRICT;
+    if (strcmp(token, "prefix") == 0)       return MAC_PREFIX;
+    if (strcmp(token, "suffix") == 0)       return MAC_SUFFIX;
 
-    return UNK_NONE;
+    return MAC_NONE;
 }
 bool set_properties(const char *key, char *value, Rules *rule)
 {
@@ -120,8 +120,8 @@ bool set_properties(const char *key, char *value, Rules *rule)
         target->replace = set_replace_tag(value);
         return true;
     }
-    if (strcmp(key, "unknown_macro") == 0) {
-        target->unknown_macro = set_macro_tag(value);
+    if (strcmp(key, "macro_match") == 0) {
+        target->macro_match = set_macro_tag(value);
         return true;
     }
 
@@ -490,7 +490,11 @@ bool load_config(const char *filepath)
         else if (current_section == SEC_MACROS && current_tool->name[0] != '\0') {
             if (parse_macro_line(line_start, current_macro)) {
                 current_tool->num_macros_local++;
-                if (current_macro->has_var) current_tool->num_macros_var++;
+
+                if (!current_macro->has_var) current_tool->num_pure++;
+                else if (current_macro->key_1st[0] != '\0') current_tool->num_prefix++;
+                else if (current_macro->key_2nd[0] == '\0') current_tool->has_wildcard = true;
+
                 if (current_macro->value[0] == '@') current_tool->has_override = true;
 
                 current_macro++;

@@ -82,11 +82,11 @@ typedef enum {
 } ReplaceAction;
 
 typedef enum {
-    UNK_FAIL        = 0,
-    UNK_PASS        = 1,
-    UNK_IGNORE      = 2,
+    MAC_STRICT      = 0,
+    MAC_PREFIX      = 1,
+    MAC_SUFFIX      = 2,
 
-    UNK_NONE        = -4,
+    MAC_NONE         = -4,
 } MacroAction;
 
 typedef struct {
@@ -156,9 +156,13 @@ typedef struct Tools {
     Macros *macros;
     char name[MAX_FILENAME_LEN];
 
-    int num_macros_local;
-    int num_macros_var;
+    // Macros info
+    uint16_t num_macros_local;
+    uint16_t num_pure;
+    uint16_t num_prefix;
+
     bool has_override;
+    bool has_wildcard;
 } Tools;
 
 typedef struct {

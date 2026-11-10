@@ -173,9 +173,7 @@ bool extract_var_macro(const char *token, const Macros *macro, char *translated_
     size_t len1st = strlen(macro->key_1st);
     size_t len2nd = strlen(macro->key_2nd);
 
-    if (len1st == 0 && len2nd == 0) return false;
-    if (len_token < (len1st + len2nd)) return false;
-
+    if (len_token <= len1st + len2nd) return false;
     if (len1st > 0 && strncmp(token, macro->key_1st, len1st) != 0) return false;
     if (len2nd > 0 && strncmp(token + len_token - len2nd, macro->key_2nd, len2nd) != 0) return false;
 
@@ -202,37 +200,59 @@ bool extract_var_macro(const char *token, const Macros *macro, char *translated_
     return true;
 }
 
-Macros *find_pure_macro(Tools *tool, const char *token, int pure_macro_count)
+Macros *find_pure_macro(Tools *tool, const char *token)
 {
-    if (pure_macro_count <= 0) return NULL;
+    if (tool->num_pure <= 0) return NULL;
 
     Macros matched_macro = {.has_var = false};
     snprintf(matched_macro.key, MAX_PARAMS_LEN, "%s", token);
 
-    return bsearch(&matched_macro, tool->macros, pure_macro_count, sizeof(Macros), comp_macros);
+    return bsearch(&matched_macro, tool->macros, tool->num_pure, sizeof(Macros), comp_macros);
 }
 
-Macros *translate_macro(const char *token, Tools *tool, char *translated_token)
+// To understand this keep in mind how the macro are sorted:
+// [pure]->[prefix_only]->[mixed]->[suffix only]->[wildcard]
+Macros *translate_macro(const char *token, Tools *tool, MacroAction match_type, char *translated_token)
 {
     if (tool == NULL) return NULL;
 
-    int pure_macro_count = tool->num_macros_local - tool->num_macros_var;
-
-    Macros *matched_macro = find_pure_macro(tool, token, pure_macro_count);
+    Macros *pure_found = find_pure_macro(tool, token);
 
     // Found a pure macro
-    if (matched_macro != NULL) {
-        snprintf(translated_token, MAX_CMD_LEN, "%s", matched_macro->value);
-        return matched_macro;
+    if (pure_found != NULL) {
+        snprintf(translated_token, MAX_CMD_LEN, "%s", pure_found->value);
+        return pure_found;
     }
 
-    // Searches for macros with 'var'
-    if (tool->num_macros_var < 1) return NULL;
+    Macros *macro_found = NULL;
+    uint16_t num_macros_var = tool->num_macros_local - tool->num_pure;
+    uint16_t first_suffix = tool->num_pure + tool->num_prefix;
 
-    for (int i = pure_macro_count; i < tool->num_macros_local; i++) {
-        if (extract_var_macro(token, &tool->macros[i], translated_token)) {
-            return &tool->macros[i];
+    // Searches for macros with 'VAR'
+    if (num_macros_var < 1) return NULL;
+
+    if (match_type == MAC_SUFFIX) {
+        for (int i = first_suffix; i < tool->num_macros_local - tool->has_wildcard; i++) {
+            macro_found = &tool->macros[i];
+            if (extract_var_macro(token, macro_found, translated_token)) return macro_found;
         }
+
+        for (int i = tool->num_pure; i < first_suffix; i++) {
+            macro_found = &tool->macros[i];
+            if (extract_var_macro(token, macro_found, translated_token)) return macro_found;
+        }
+    }
+
+    else if (match_type == MAC_STRICT || match_type == MAC_PREFIX) {
+        for (int i = tool->num_pure; i < tool->num_macros_local - tool->has_wildcard; i++) {
+            macro_found = &tool->macros[i];
+            if (extract_var_macro(token, macro_found, translated_token)) return macro_found;
+        }
+    }
+
+    if (tool->has_wildcard) {
+        Macros *wildcard = &tool->macros[tool->num_macros_local - 1];
+        if (extract_var_macro(token, wildcard, translated_token)) return wildcard;
     }
 
     return NULL;
@@ -269,7 +289,7 @@ bool expand_macros(const char *input, Rules *rule, char *out_macros, char *out_t
             if (flag >= 0) {rule->local.replace = flag; continue;}
 
             flag = set_macro_tag(token + 1);
-            if (flag >= 0) {rule->local.unknown_macro = flag; continue;}
+            if (flag >= 0) {rule->local.macro_match = flag; continue;}
 
             return false;
         }
@@ -277,17 +297,9 @@ bool expand_macros(const char *input, Rules *rule, char *out_macros, char *out_t
         Macros *matched = NULL;
         char translated_token[MAX_CMD_LEN] = {0};
 
-        if (active_override != NULL) matched = translate_macro(token, active_override, translated_token);
-        if         (matched == NULL) matched = translate_macro(token, rule->tool, translated_token);
-
-        if (matched == NULL) {
-            if      (rule->local.unknown_macro == UNK_PASS) snprintf(translated_token, MAX_PARAMS_LEN, "%s", token);
-            else if (rule->local.unknown_macro == UNK_IGNORE) continue;
-            else if (rule->local.unknown_macro == UNK_FAIL) {
-                // TODO: dispatch failure event
-                return false;
-            }
-        }
+        if (active_override != NULL) matched = translate_macro(token, active_override, rule->local.macro_match, translated_token);
+        if         (matched == NULL) matched = translate_macro(token, rule->tool, rule->local.macro_match, translated_token);
+        if         (matched == NULL) return false; // TODO: DISPATCH_EVENT
 
         if (translated_token[0] == '@') {
             snprintf(out_template, MAX_CMD_LEN, "%s", translated_token);
