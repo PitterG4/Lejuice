@@ -34,6 +34,8 @@ Section section_search(const char *line, Section current)
 {
     if (STARTS_WITH(line, "[watcher]"))         return SEC_WATCHER;
 
+    if (STARTS_WITH(line, "[parser]"))         return SEC_PARSER;
+
     if (STARTS_WITH(line, "[actions.global]") ||
         STARTS_WITH(line, "[actions]"))         return SEC_ACTIONS;
 
