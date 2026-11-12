@@ -14,9 +14,9 @@ uint64_t current_time_ms()
     return GetTickCount64();
 }
 
-int utf8_to_wide(wchar_t *wide_out, int wide_max_len, const char *utf8)
+bool utf8_to_wide(wchar_t *wide_out, int wide_max_len, const char *utf8)
 {
-    if (utf8 == NULL || wide_out == NULL) return false;
+    if (utf8 == NULL || wide_out == NULL || wide_max_len <= 0) return false;
 
     int len = MultiByteToWideChar(
         CP_UTF8, 0, utf8,   // from utf8
@@ -25,12 +25,10 @@ int utf8_to_wide(wchar_t *wide_out, int wide_max_len, const char *utf8)
         wide_max_len        // buffer size
     );
 
-    // do not include \0 in the size
-    if (len > 0) return (len - 1);
-    else return 0;
+    return len > 0;
 }
 
-int wide_to_utf8(char *utf8_out, int utf8_max_len, const wchar_t *wide)
+bool wide_to_utf8(char *utf8_out, int utf8_max_len, const wchar_t *wide)
 {
     if (wide == NULL || utf8_out == NULL || utf8_max_len <= 0) return 0;
 
@@ -42,11 +40,7 @@ int wide_to_utf8(char *utf8_out, int utf8_max_len, const wchar_t *wide)
         NULL, NULL
     );
 
-    // do not include \0 in the size
-    if (len > 0) return (len - 1);
-    else utf8_out[0] = '\0';
-
-    return 0;
+    return len > 0;
 }
 
 bool rename_file(const char *old_filepath, const char *new_filepath)
@@ -119,10 +113,9 @@ bool set_path_registry(char *install_path)
     if (install_path == NULL || install_path[0] == '\0') return false;
 
     wchar_t wide_path[MAX_PATH_LEN];
-    int len = utf8_to_wide(wide_path, MAX_PATH_LEN, install_path);
+    if (!utf8_to_wide(wide_path, MAX_PATH_LEN, install_path)) return false;
 
-    if (!len) return false;
-    DWORD bytes_size = (len + 1) * sizeof(wchar_t);
+    DWORD bytes_size = (DWORD)((wcslen(wide_path) + 1) * sizeof(wchar_t));
 
     // Create or overwrite the key
     LONG result = RegSetKeyValueW(
@@ -183,10 +176,12 @@ bool get_install_path_default(char *out_path)
             NULL, SHGFP_TYPE_CURRENT,   // folder in current use
             wide_documents) != S_OK) return false;
 
-    int len = wide_to_utf8(out_path, MAX_PATH_LEN, wide_documents);
-    if (!len) return false;
+    if (!wide_to_utf8(out_path, MAX_PATH_LEN, wide_documents)) return false;
 
-    snprintf(out_path + len, MAX_PATH_LEN - len, "\\Lejuice");
+    size_t len = strlen(out_path);
+
+    int written = snprintf(out_path + len, MAX_PATH_LEN - len, "\\Lejuice");
+    if (written < 0 || (size_t)written >= MAX_PATH_LEN - len) return false;
 
     return true;
 }
