@@ -3,8 +3,9 @@
 #include <stdbool.h>
 
 uint64_t current_time_ms();
-int utf8_to_wide(wchar_t *wide_out, int wide_max_len, const char *utf8);
-int wide_to_utf8(char *utf8_out, int utf8_max_len, const wchar_t *wide);
+bool utf8_to_wide(wchar_t *wide_out, int wide_max_len, const char *utf8);
+bool wide_to_utf8(char *utf8_out, int utf8_max_len, const wchar_t *wide);
+FILE *open_file(const char *path, const char *mode);
 bool rename_file(const char *old_filepath, const char *new_filepath);
 bool check_file(const char *filepath);
 bool run_process(const char *command);
