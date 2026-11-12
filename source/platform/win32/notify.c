@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "system.h"
 #include "types.h"
 #include "tray.h"
 
@@ -26,7 +27,7 @@ void write_to_log(EventFlag flag, const char *title, const char *message)
     char log_install[MAX_PATH_LEN];
     snprintf(log_install, MAX_PATH_LEN  - 16, "%s\\lejuice.txt", config.install_path);
 
-    FILE *log_file = fopen(log_install, "a");
+    FILE *log_file = open_file(log_install, "a");
     if (log_file == NULL) return;
 
     const char *section = flag_to_section(flag);

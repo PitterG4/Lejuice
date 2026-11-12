@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "system.h"
 #include "types.h"
 
 #define STARTS_WITH(text, prefix) (strncmp(text, prefix, sizeof(prefix) - 1) == 0)
@@ -265,7 +266,7 @@ ConfigCount count_and_validate(FILE *ini)
         char *line_start = line;
         while (*line_start == ' ' || *line_start == '\t') line_start++;
 
-        if (line_start[0] == '#'    || line_start[0] == ';' ||
+        if (line_start[0] == '#'    || line_start[0] == ';'  ||
             line_start[0] == '\n'   || line_start[0] == '\r' ||
             line_start[0] == '\0')  continue;
 
@@ -276,7 +277,7 @@ ConfigCount count_and_validate(FILE *ini)
             }
             current_section = section_search(line_start, current_section);
 
-            if ((current_section == SEC_WATCHER || current_section == SEC_ACTIONS ||current_section == SEC_EVENTS)
+            if ((current_section == SEC_WATCHER || current_section == SEC_ACTIONS || current_section == SEC_EVENTS)
                 && count.num_rules > 0) {
                 count.line_error = current_line;
                 return count;
@@ -445,7 +446,7 @@ bool load_config(const char *filepath)
 {
     set_config_default();
 
-    FILE *ini = fopen(filepath, "r");
+    FILE *ini = open_file(filepath, "r");
     if (ini == NULL) return false;
 
     char line[MAX_CMD_LEN];

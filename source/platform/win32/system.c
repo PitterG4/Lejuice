@@ -43,6 +43,20 @@ bool wide_to_utf8(char *utf8_out, int utf8_max_len, const wchar_t *wide)
     return len > 0;
 }
 
+FILE *open_file(const char *path, const char *mode)
+{
+    if (path == NULL || path[0] == '\0' ||
+        mode == NULL || mode[0] == '\0') return NULL;
+
+    wchar_t wide_path[MAX_PATH_LEN];
+    wchar_t wide_mode[MAX_EXT_LEN];
+
+    if (!utf8_to_wide(wide_path, MAX_PATH_LEN, path)) return NULL;
+    if (!utf8_to_wide(wide_mode, MAX_EXT_LEN, mode))  return NULL;
+
+    return _wfopen(wide_path, wide_mode);
+}
+
 bool rename_file(const char *old_filepath, const char *new_filepath)
 {
     wchar_t wide_old_filepath[MAX_PATH_LEN];
