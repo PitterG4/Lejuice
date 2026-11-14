@@ -9,6 +9,7 @@
 #define MAX_FILENAME_LEN 256
 #define MAX_PARAMS_LEN 128
 #define MAX_EXT_LEN 16
+#define MAX_CLI_ARGS 3
 
 #define MIN_FREE_SIZE_MB 128
 
@@ -98,8 +99,8 @@ typedef enum {
 } MacroMatch;
 
 typedef enum {
-    SEP_SPACE   = 1 << 1,
-    SEP_COMMA   = 1 << 2,
+    SEP_SPACE   = 1 << 0,
+    SEP_COMMA   = 1 << 1,
 
     SEP_DEFAULT = (SEP_SPACE | SEP_COMMA),
 

@@ -61,10 +61,9 @@ Command set_command_tag(char *name)
     return CMD_UNKNOWN;
 }
 
-int main (int argc, char **argv)
+int run_cli(int argc, char **argv)
 {
-    // now 3 is the max args number
-    if (argc < 2 || argc > 4) {
+    if (argc < 2 || argc > MAX_CLI_ARGS) {
         print_help();
         return EXIT_SUCCESS;
     }
@@ -196,3 +195,41 @@ int main (int argc, char **argv)
 
     return EXIT_FAILURE;
 }
+
+#ifdef _WIN32
+
+int wmain(int argc, wchar_t **wide_argv)
+{
+    if (argc > MAX_CLI_ARGS) {
+        print_help();
+        return EXIT_FAILURE;
+    }
+
+    char *utf8_argv[argc];
+    char utf8_args[MAX_CMD_LEN];
+
+    char *current_arg = utf8_args;
+
+    for (int i = 0; i < argc; i++) {
+        size_t len = (size_t)(current_arg - utf8_args);
+
+        utf8_argv[i] = &utf8_args[len];
+        if (!wide_to_utf8(current_arg, MAX_CMD_LEN - len, wide_argv[i])) {
+            fprintf(stderr, "Error: Couldn't convert command-line arguments to UTF-8.");
+            return EXIT_FAILURE;
+        }
+
+        current_arg = strchr(current_arg, '\0') + 1;
+    }
+
+    return run_cli(argc, utf8_argv);
+}
+
+#else
+
+int main(int argc, char **argv)
+{
+    return run_cli(argc, argv);
+}
+
+#endif
