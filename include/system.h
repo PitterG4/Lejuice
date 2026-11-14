@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 uint64_t current_time_ms();
 bool utf8_to_wide(wchar_t *wide_out, int wide_max_len, const char *utf8);
