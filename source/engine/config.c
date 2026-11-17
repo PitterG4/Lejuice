@@ -38,7 +38,7 @@ Section section_search(const char *line, Section current)
 {
     if (STARTS_WITH(line, "[watcher]"))         return SEC_WATCHER;
 
-    if (STARTS_WITH(line, "[parser]"))         return SEC_PARSER;
+    if (STARTS_WITH(line, "[parser]"))          return SEC_PARSER;
 
     if (STARTS_WITH(line, "[actions.global]") ||
         STARTS_WITH(line, "[actions]"))         return SEC_ACTIONS;
@@ -164,7 +164,7 @@ bool set_properties(const char *key, char *value, Rules *rule)
         return true;
     }
     if (strcmp(key, "fallback") == 0) {
-        target->fallback = set_macro_match_tag(value);
+        target->fallback = set_fallback_tag(value);
         return true;
     }
 
@@ -500,7 +500,7 @@ bool load_config(const char *filepath)
                 char *final_bracket = strrchr(line_start, ']');
                 if (final_bracket != NULL) *final_bracket = '\0';
 
-                if (current_tool->name[0] != '\0') current_tool++;
+                if (STARTS_WITH(line_start, "[macros.")) current_tool++;
 
                 snprintf(current_tool->name, MAX_FILENAME_LEN, "%s", line_start + (sizeof("[macros.") - 1));
                 current_tool->macros = current_macro;
@@ -508,7 +508,8 @@ bool load_config(const char *filepath)
             continue;
         }
 
-        if (current_section == SEC_WATCHER || current_section == SEC_ACTIONS || current_section == SEC_EVENTS) {
+        if (current_section == SEC_WATCHER || current_section == SEC_ACTIONS ||
+            current_section == SEC_EVENTS  || current_section == SEC_PARSER) {
             parse_property_line(line_start, NULL);
         }
 

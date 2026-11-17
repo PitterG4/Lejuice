@@ -211,7 +211,7 @@ Macros *find_pure_macro(Tools *tool, const char *token)
 }
 
 // To understand this keep in mind how the macro are sorted:
-// [pure]->[prefix_only]->[mixed]->[suffix only]->[wildcard]
+// [pure]->[mixed]->[prefix_only]->[suffix only]->[wildcard]
 Macros *translate_macro(const char *token, Tools *tool, MacroMatch match_type, char *translated_token)
 {
     if (tool == NULL) return NULL;
