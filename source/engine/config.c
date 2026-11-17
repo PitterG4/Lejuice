@@ -257,8 +257,11 @@ ConfigCount count_and_validate(FILE *ini)
 {
     ConfigCount count = {0};
     char line[MAX_CMD_LEN];
-    Section current_section = SEC_NONE;
+
     int current_line = 0;
+    Section current_section = SEC_NONE;
+
+    bool tool_has_wildcard = false;
 
     while (fgets(line, sizeof(line), ini) != NULL) {
         current_line++;
@@ -277,24 +280,42 @@ ConfigCount count_and_validate(FILE *ini)
             }
             current_section = section_search(line_start, current_section);
 
-            if ((current_section == SEC_WATCHER || current_section == SEC_ACTIONS || current_section == SEC_EVENTS)
+            if ((current_section == SEC_WATCHER || current_section == SEC_ACTIONS ||
+                current_section == SEC_EVENTS   || current_section == SEC_PARSER)
                 && count.num_rules > 0) {
                 count.line_error = current_line;
                 return count;
             }
 
-            if (STARTS_WITH(line_start, "[macros.")) count.num_tools++;
+            if (STARTS_WITH(line_start, "[macros.")) {
+                tool_has_wildcard = false;
+                count.num_tools++;
+            }
             continue;
         }
 
         if (current_section == SEC_WATCHER || current_section == SEC_ACTIONS ||
             current_section == SEC_EVENTS  || current_section == SEC_MACROS) {
-            if (strchr(line_start, '=') == NULL && line_start[0] != '@') {
+            if (strchr(line_start, '=') == NULL) {
                 count.line_error = current_line;
                 return count;
             }
             if (current_section == SEC_MACROS) {
                 count.num_macros++;
+
+                char *equal = strchr(line_start, '=');
+                int key_len = (int)(equal - line_start);
+
+                while (key_len > 0 && (line_start[key_len - 1] == ' ' || line_start[key_len - 1] == '\t')) key_len--;
+
+                // 5 from strlen("{VAR}")
+                if (key_len == 5 && strncmp(line_start, "{VAR}", 5) == 0) {
+                    if (tool_has_wildcard) {
+                        count.line_error = current_line;
+                        return count;
+                    }
+                    tool_has_wildcard = true;
+                }
             }
         }
         else if (current_section == SEC_RULES) {
@@ -341,7 +362,7 @@ int comp_tools(const void *a, const void *b)
     return strcmp(tool_a->name, tool_b->name);
 }
 
-int group_macro(const Macros *macro)
+int set_macro_type(const Macros *macro)
 {
     if (!macro->has_var)          return 0; // Pure: xy
 
@@ -371,8 +392,8 @@ int comp_macros(const void *a, const void *b)
     const Macros *macro_a = (const Macros*) a;
     const Macros *macro_b = (const Macros*) b;
 
-    int group_a = group_macro(macro_a);
-    int group_b = group_macro(macro_b);
+    int group_a = set_macro_type(macro_a);
+    int group_b = set_macro_type(macro_b);
 
     if (group_a < group_b) return -1;
     if (group_a > group_b) return 1;
@@ -440,6 +461,78 @@ void link_pointers()
             }
         }
     }
+}
+
+bool are_macros_equal(Macros *macro_a, Macros *macro_b)
+{
+    if (macro_a->has_var != macro_b->has_var) return false;
+    if (!macro_a->has_var) return strcmp(macro_a->key, macro_b->key) == 0;
+
+    return strcmp(macro_a->key_1st, macro_b->key_1st) == 0 &&
+           strcmp(macro_a->key_2nd, macro_b->key_2nd) == 0;
+}
+
+bool are_macros_ambiguous(Macros *macro_a, Macros *macro_b)
+{
+    if (!macro_a->has_var || !macro_b->has_var) return false;
+
+    size_t prefix_len_a   = strlen(macro_a->key_1st);
+    size_t prefix_len_b   = strlen(macro_b->key_1st);
+    size_t smaller_prefix = (prefix_len_a < prefix_len_b) ? prefix_len_a : prefix_len_b;
+
+    // compare from the start
+    if (strncmp(macro_a->key_1st, macro_b->key_1st, smaller_prefix) != 0) return false;
+
+    size_t suffix_len_a   = strlen(macro_a->key_2nd);
+    size_t suffix_len_b   = strlen(macro_b->key_2nd);
+    size_t smaller_suffix = (suffix_len_a < suffix_len_b) ? suffix_len_a : suffix_len_b;
+
+    // align both by the end
+    char *suffix_end_a = macro_a->key_2nd + (suffix_len_a - smaller_suffix);
+    char *suffix_end_b = macro_b->key_2nd + (suffix_len_b - smaller_suffix);
+
+    // compare from the end
+    if (strcmp(suffix_end_a, suffix_end_b) != 0) return false;
+
+    int diff_prefix = (int)prefix_len_a - (int)prefix_len_b;
+    int diff_suffix = (int)suffix_len_a - (int)suffix_len_b;
+
+    return (diff_prefix * diff_suffix) < 0;
+}
+
+bool validate_macros() {
+    for (int t = 0; t < config.count.num_tools; t++) {
+        const Tools *tool = &config.tools[t];
+
+        if (tool->num_macros_local < 2) continue;
+
+        // Compare already sorted pure macros
+        for (int i = 0; i < tool->num_macros_local - 1; i++) {
+            if (are_macros_equal(&tool->macros[i], &tool->macros[i + 1])) {
+                return false;
+            }
+        }
+
+        if (config.macro_match != MAC_STRICT) continue;
+
+        int start = tool->num_pure;
+        int end   = tool->num_macros_local - tool->has_wildcard;
+
+        int suffix_start = start + tool->num_prefix;
+        int num_suffix   = end - suffix_start;
+
+        if (start >= end) continue;
+        bool has_mixed = (set_macro_type(&tool->macros[start]) == 1);
+        if (!has_mixed && (tool->num_prefix == 0 || num_suffix == 0)) continue;
+
+        for (int i = start; i < suffix_start; i++) {
+            for (int j = i + 1; j < end; j++) {
+                if (are_macros_ambiguous(&tool->macros[i], &tool->macros[j])) return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 bool load_config(const char *filepath)
@@ -550,6 +643,8 @@ bool load_config(const char *filepath)
     }
 
     sort_config_file();
+
+    if (!validate_macros()) {fclose(ini); return false;}
     link_pointers();
 
     fclose(ini);
