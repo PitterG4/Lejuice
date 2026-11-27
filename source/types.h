@@ -16,6 +16,9 @@
 #define DEFAULT_QUEUE_SIZE 8
 #define DEFAULT_ESCAPE_PREFIX "!"
 
+// strlen("{VAR}");
+#define TAG_VAR_LEN 5
+
 extern struct Config config;
 
 // to main.c
@@ -163,8 +166,8 @@ typedef struct {
     char key[MAX_PARAMS_LEN];
     char value[MAX_CMD_LEN];
 
-    char key_1st[MAX_PARAMS_LEN / 2];
-    char key_2nd[MAX_PARAMS_LEN / 2];
+    char key_1st[MAX_PARAMS_LEN];
+    char key_2nd[MAX_PARAMS_LEN];
     bool has_var;
 
     struct Tools *override;

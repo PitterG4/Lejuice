@@ -15,7 +15,6 @@ bool verify_syntax(char *config_path)
     if (config.count.line_error > 0) printf("[ERROR] Incorrect syntax in config.ini. Line: %d.\n", config.count.line_error);
     else printf("[ERROR] Could not open '%s'.\n", config_path);
 
-    free_config_struct();
     return false;
 }
 

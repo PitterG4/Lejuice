@@ -241,8 +241,8 @@ bool parse_macro_line(char *line, Macros *macro)
         macro->has_var = true;
         int len_1st = (int)(brace - key_part);
 
-        snprintf(macro->key_1st, MAX_PARAMS_LEN / 2, "%.*s", len_1st, key_part);
-        snprintf(macro->key_2nd, MAX_PARAMS_LEN / 2, "%s", brace + 5);
+        snprintf(macro->key_1st, MAX_PARAMS_LEN, "%.*s", len_1st, key_part);
+        snprintf(macro->key_2nd, MAX_PARAMS_LEN, "%s", brace + TAG_VAR_LEN);
     } else {
         macro->has_var = false;
     }
@@ -375,17 +375,17 @@ int set_macro_type(const Macros *macro)
 
     return 4; // Only variable: {VAR}
 }
-int comp_half(const char *a, const char *b)
+int comp_half(const char *half_a, const char *half_b)
 {
-    size_t len_a = strlen(a);
-    size_t len_b = strlen(b);
+    size_t len_a = strlen(half_a);
+    size_t len_b = strlen(half_b);
 
     // Sort by length
     if (len_a > len_b) return -1;
     if (len_a < len_b) return 1;
 
     // Sort alphabetically
-    return strcmp(a, b);
+    return strcmp(half_a, half_b);
 }
 int comp_macros(const void *a, const void *b)
 {
@@ -409,13 +409,17 @@ int comp_macros(const void *a, const void *b)
 void sort_config_file()
 {
     // Sort every rule
-    qsort(config.rules, config.count.num_rules, sizeof(Rules), comp_rules);
+    if (config.count.num_rules > 1) {
+        qsort(config.rules, config.count.num_rules, sizeof(Rules), comp_rules);
+    }
 
     // Sort every tool
-    qsort(config.tools, config.count.num_tools, sizeof(Tools), comp_tools);
+    if (config.count.num_tools > 1) {
+        qsort(config.tools, config.count.num_tools, sizeof(Tools), comp_tools);
+    }
 
     for (int i = 0; i < config.count.num_tools; i++) {
-        if (config.tools[i].num_macros_local < 1) continue;
+        if (config.tools[i].num_macros_local < 2) continue;
 
         // Sort every tool's macros
         qsort(config.tools[i].macros, config.tools[i].num_macros_local, sizeof(Macros), comp_macros);
@@ -444,7 +448,6 @@ void link_pointers()
     // link macro overrides
     for (int i = 0; i < config.count.num_tools; i++) {
         Tools *tool = &config.tools[i];
-
         if (!tool->has_override) continue;
 
         for (int j = 0; j < tool->num_macros_local; j++) {
@@ -463,7 +466,7 @@ void link_pointers()
     }
 }
 
-bool are_macros_equal(Macros *macro_a, Macros *macro_b)
+bool are_macros_equal(const Macros *macro_a, const Macros *macro_b)
 {
     if (macro_a->has_var != macro_b->has_var) return false;
     if (!macro_a->has_var) return strcmp(macro_a->key, macro_b->key) == 0;
@@ -472,24 +475,28 @@ bool are_macros_equal(Macros *macro_a, Macros *macro_b)
            strcmp(macro_a->key_2nd, macro_b->key_2nd) == 0;
 }
 
-bool are_macros_ambiguous(Macros *macro_a, Macros *macro_b)
+bool are_macros_ambiguous(const Macros *macro_a, const Macros *macro_b)
 {
     if (!macro_a->has_var || !macro_b->has_var) return false;
 
     size_t prefix_len_a   = strlen(macro_a->key_1st);
     size_t prefix_len_b   = strlen(macro_b->key_1st);
-    size_t smaller_prefix = (prefix_len_a < prefix_len_b) ? prefix_len_a : prefix_len_b;
+
+    size_t smaller_prefix = prefix_len_a;
+    if (prefix_len_a > prefix_len_b) smaller_prefix = prefix_len_b;
 
     // compare from the start
     if (strncmp(macro_a->key_1st, macro_b->key_1st, smaller_prefix) != 0) return false;
 
     size_t suffix_len_a   = strlen(macro_a->key_2nd);
     size_t suffix_len_b   = strlen(macro_b->key_2nd);
-    size_t smaller_suffix = (suffix_len_a < suffix_len_b) ? suffix_len_a : suffix_len_b;
+
+    size_t smaller_suffix = suffix_len_a;
+    if (suffix_len_a > suffix_len_b) smaller_suffix = suffix_len_b;
 
     // align both by the end
-    char *suffix_end_a = macro_a->key_2nd + (suffix_len_a - smaller_suffix);
-    char *suffix_end_b = macro_b->key_2nd + (suffix_len_b - smaller_suffix);
+    const char *suffix_end_a = macro_a->key_2nd + (suffix_len_a - smaller_suffix);
+    const char *suffix_end_b = macro_b->key_2nd + (suffix_len_b - smaller_suffix);
 
     // compare from the end
     if (strcmp(suffix_end_a, suffix_end_b) != 0) return false;
