@@ -14,6 +14,10 @@ void free_config_struct()
     free(config.rules);
     free(config.tools);
     free(config.macros);
+
+    config.rules  = NULL;
+    config.tools  = NULL;
+    config.macros = NULL;
 }
 
 void set_config_default()
@@ -34,10 +38,30 @@ void set_config_default()
     config.global.notify    = FLAG_DEFAULT;
 }
 
-Section section_search(const char *line, Section current)
+char *trim(char *str)
+{
+    while (*str == ' ' || *str == '\t') str++;
+
+    size_t len = strlen(str);
+    while (len > 0 && (str[len - 1] == ' ' || str[len - 1] == '\t' ||
+                       str[len - 1] == '\r' || str[len - 1] == '\n')) {str[--len] = '\0';}
+
+    return str;
+}
+
+char *skip_ignorable(char *line)
+{
+    while (*line == ' ' || *line == '\t') line++;
+
+    if (*line == '#' || *line == ';' || *line == '\r' ||
+        *line == '\n' || *line == '\0') return NULL;
+
+    return line;
+}
+
+Section section_search(const char *line)
 {
     if (STARTS_WITH(line, "[watcher]"))         return SEC_WATCHER;
-
     if (STARTS_WITH(line, "[parser]"))          return SEC_PARSER;
 
     if (STARTS_WITH(line, "[actions.global]") ||
@@ -50,26 +74,27 @@ Section section_search(const char *line, Section current)
 
     if (STARTS_WITH(line, "[macros."))          return SEC_MACROS;
 
-    return current;
+    return SEC_NONE;
 }
 
-uint32_t set_event_flag(char *value)
+bool set_event_flag(char *value, uint8_t *out_mask)
 {
-    uint32_t mask = 0;
+    uint8_t mask = 0;
     char *token = strtok(value, " ,");
+    if (token == NULL) return false;
 
     while (token != NULL) {
-        if      (strcmp(token, "all") == 0) return ~0;
-        if      (strcmp(token, "none") == 0) return 0;
-        if      (strcmp(token, "default") == 0) mask |= FLAG_DEFAULT;
+        if      (strcmp(token, "all") == 0) {*out_mask = ~0; return true;}
+        else if (strcmp(token, "none") == 0) {*out_mask = 0; return true;}
+        else if (strcmp(token, "default") == 0) mask |= FLAG_DEFAULT;
 
         // System category
-        if      (strcmp(token, "system") == 0) mask |= FLAG_SYS;
+        else if (strcmp(token, "system") == 0) mask |= FLAG_SYS;
         else if (strcmp(token, "system_info") == 0) mask |= FLAG_SYS_INFO;
         else if (strcmp(token, "system_error") == 0) mask |= FLAG_SYS_ERROR;
 
         // Task category
-        if      (strcmp(token, "task") == 0) mask |= FLAG_TASK;
+        else if (strcmp(token, "task") == 0) mask |= FLAG_TASK;
         else if (strcmp(token, "task_start") == 0) mask |= FLAG_TASK_START;
         else if (strcmp(token, "task_done") == 0)  mask |= FLAG_TASK_DONE;
         else if (strcmp(token, "task_error") == 0) mask |= FLAG_TASK_ERROR;
@@ -78,11 +103,13 @@ uint32_t set_event_flag(char *value)
         if      (strcmp(token, "filter") == 0) mask |= FLAG_FILTER;
         else if (strcmp(token, "filter_rule") == 0) mask |= FLAG_FILTER_RULE;
         else if (strcmp(token, "filter_noise") == 0) mask |= FLAG_FILTER_NOISE;
+        else return false;
 
         token = strtok(NULL, " ,");
     }
 
-    return mask;
+    *out_mask = mask;
+    return true;
 }
 ReplaceAction set_replace_tag(const char *token)
 {
@@ -113,10 +140,12 @@ ParamSeparator set_separator_tag(char *value)
 {
     uint8_t mask = 0;
     char *token = strtok(value, " ,");
+    if (token == NULL) return SEP_ERROR;
 
     while (token != NULL) {
         if (strcmp(token, "space") == 0) mask |= SEP_SPACE;
-        if (strcmp(token, "comma") == 0) mask |= SEP_COMMA;
+        else if (strcmp(token, "comma") == 0) mask |= SEP_COMMA;
+        else return SEP_ERROR;
 
         token = strtok(NULL, " ,");
     }
@@ -126,55 +155,78 @@ ParamSeparator set_separator_tag(char *value)
 
 bool set_properties(const char *key, char *value, Rules *rule)
 {
-    Profile *target;
+    Profile *target = &config.global;
 
     if (rule == NULL) {
-        target = &config.global;
-
         // Category: watcher
         if (strcmp(key, "watch_dir") == 0) {
+            if (strlen(value) >= MAX_PATH_LEN) return false;
+
             snprintf(config.watch_dir, MAX_PATH_LEN, "%s", value);
             return true;
         }
         if (strcmp(key, "queue_size") == 0) {
-            config.queue_size = strtol(value, NULL, 10);
+            char *end;
+            int chosen_size = strtol(value, &end, 10);
+            if (*end != '\0' || chosen_size <= 0) return false;
+
+            config.queue_size = chosen_size;
             return true;
         }
         if (strcmp(key, "escape_prefix") == 0) {
+            if (strlen(value) >= MAX_EXT_LEN) return false;
+
             snprintf(config.escape_prefix, MAX_EXT_LEN, "%s", value);
             return true;
         }
 
         // Category: parser
         if (strcmp(key, "macro_match") == 0) {
-            config.macro_match = set_macro_match_tag(value);
+            MacroMatch chosen_match = set_macro_match_tag(value);
+            if (chosen_match == MAC_ERROR) return false;
+
+            config.macro_match = chosen_match;
             return true;
         }
         if (strcmp(key, "param_separator") == 0) {
-            config.param_separator = set_separator_tag(value);
+            ParamSeparator chosen_separator = set_separator_tag(value);
+            if (chosen_separator == SEP_ERROR) return false;
+
+            config.param_separator = chosen_separator;
             return true;
         }
     }
-
-    else (target = &rule->local);
+    else target = &rule->local;
 
     // Category: actions
     if (strcmp(key, "replace") == 0) {
-        target->replace = set_replace_tag(value);
+        ReplaceAction chosen_replace = set_replace_tag(value);
+        if (chosen_replace == REP_ERROR) return false;
+
+        target->replace = chosen_replace;
         return true;
     }
     if (strcmp(key, "fallback") == 0) {
-        target->fallback = set_fallback_tag(value);
+        FallbackAction chosen_fallback = set_fallback_tag(value);
+        if (chosen_fallback == FALL_ERROR) return false;
+
+        target->fallback = chosen_fallback;
         return true;
     }
 
     // Category: events
     if (strcmp(key, "notify") == 0) {
-        target->notify = set_event_flag(value);
+        uint8_t mask;
+        if (!set_event_flag(value, &mask)) return false;
+
+        target->notify = mask;
         return true;
     }
     if (strcmp(key, "log") == 0) {
-        target->log = set_event_flag(value);
+        uint8_t mask;
+        if (!set_event_flag(value, &mask)) return false;
+
+        target->log = mask;
         return true;
     }
 
@@ -185,59 +237,74 @@ bool parse_property_line(char *line, Rules *rule)
 {
     char *equal = strchr(line, '=');
     if (equal == NULL) return false;
-
     *equal = '\0';
-    char *key_part = line;
-    char *value_part = equal + 1;
 
-    while (*value_part == ' ' || *value_part == '\t') value_part++;
+    char *key_part   = trim(line);
+    char *value_part = trim(equal + 1);
 
-    value_part[strcspn(value_part, "\r\n")] = '\0';
-    key_part[strcspn(key_part, " \t")] = '\0';
+    if (strlen(key_part) == 0 || *value_part == '\0') return false;
+    if (strcspn(key_part, " \t") != strlen(key_part)) return false;
 
     return set_properties(key_part, value_part, rule);
 }
 
 bool parse_rule_line(char *line, Rules *rule)
 {
+    char *arrow = strstr(line, "->");
     char *colon = strchr(line, ':');
-    if (colon == NULL) return false;
 
+    if (arrow == NULL || colon == NULL) return false;
+    if (colon < (arrow + 2)) return false;
+
+    *arrow = '\0';
     *colon = '\0';
-    char *ext_part = line;
-    char *cmd_part = colon + 1;
 
-    if (sscanf(ext_part, " %15s -> %15s", rule->from_ext, rule->to_ext) == 2) {
-        while (*cmd_part == ' ' || *cmd_part == '\t') cmd_part++;
-        cmd_part[strcspn(cmd_part, "\r\n")] = '\0';
+    char *from_ext  = trim(line);
+    char *to_ext    = trim(arrow + 2);
+    char *cmd_part  = trim(colon + 1);
 
-        snprintf(rule->command_template, MAX_CMD_LEN, "%s", cmd_part);
-        sscanf(cmd_part, "%s", rule->tool_name_temp);
+    size_t from_len = strlen(from_ext);
+    size_t to_len   = strlen(to_ext);
+    size_t cmd_len  = strlen(cmd_part);
 
-        return true;
-    }
+    size_t tool_len = strcspn(cmd_part, " \t");
 
-    return false;
+    if (from_len == 0 || from_len >= MAX_EXT_LEN || strcspn(from_ext, " \t") != from_len) return false;
+    if (to_len   == 0 || to_len   >= MAX_EXT_LEN || strcspn(to_ext, " \t")   != to_len)   return false;
+    if (cmd_len  == 0 || cmd_len  >= MAX_CMD_LEN || tool_len >= MAX_FILENAME_LEN)         return false;
+
+    snprintf(rule->from_ext, MAX_EXT_LEN, "%s", from_ext);
+    snprintf(rule->to_ext, MAX_EXT_LEN, "%s", to_ext);
+    snprintf(rule->command_template, MAX_CMD_LEN, "%s", cmd_part);
+
+    snprintf(rule->tool_name_temp, MAX_FILENAME_LEN, "%.*s", (int)tool_len, cmd_part);
+
+    return true;
 }
 
-bool parse_macro_line(char *line, Macros *macro)
+bool parse_macro_line(char *line, Macros *macro, int line_num)
 {
     char *equal = strchr(line, '=');
     if (equal == NULL) return false;
 
     *equal = '\0';
 
-    char *key_part = line;
-    char *value_part = equal + 1;
+    char *key_part   = trim(line);
+    char *value_part = trim(equal + 1);
 
-    while (*value_part == ' ' || *value_part == '\t') value_part++;
-    value_part[strcspn(value_part, "\r\n")] = '\0';
-    key_part[strcspn(key_part, " \t")] = '\0';
+    size_t key_len = strlen(key_part);
+    size_t val_len = strlen(value_part);
 
-    if (*key_part == '\0' || *value_part == '\0') return false;
+    if (key_len == 0 || key_len >= MAX_PARAMS_LEN) return false;
+    if (val_len == 0 || val_len >= MAX_CMD_LEN)    return false;
+
+    // Do not allow separator in the macro itself
+    if (strcspn(key_part, " \t,") != key_len) return false;
 
     char *brace = strstr(key_part, "{VAR}");
     if (brace != NULL) {
+        if (strstr(brace + TAG_VAR_LEN, "{VAR}") != NULL) return false;
+
         macro->has_var = true;
         int len_1st = (int)(brace - key_part);
 
@@ -249,10 +316,11 @@ bool parse_macro_line(char *line, Macros *macro)
 
     snprintf(macro->key, MAX_PARAMS_LEN, "%s", key_part);
     snprintf(macro->value, MAX_CMD_LEN, "%s", value_part);
+    macro->ini_line = line_num;
     return true;
 }
 
-// 1st pass function
+// 1st pass function: count items and validate the overall structure
 ConfigCount count_and_validate(FILE *ini)
 {
     ConfigCount count = {0};
@@ -260,34 +328,33 @@ ConfigCount count_and_validate(FILE *ini)
 
     int current_line = 0;
     Section current_section = SEC_NONE;
-
     bool tool_has_wildcard = false;
 
     while (fgets(line, sizeof(line), ini) != NULL) {
         current_line++;
 
-        char *line_start = line;
-        while (*line_start == ' ' || *line_start == '\t') line_start++;
-
-        if (line_start[0] == '#'    || line_start[0] == ';'  ||
-            line_start[0] == '\n'   || line_start[0] == '\r' ||
-            line_start[0] == '\0')  continue;
+        char *line_start = skip_ignorable(line);
+        if (line_start == NULL) continue;
 
         if (line_start[0] == '[') {
-            if (strchr(line_start, ']') == NULL) {
-                count.line_error = current_line;
-                return count;
-            }
-            current_section = section_search(line_start, current_section);
+            char *close_bracket = strchr(line_start, ']');
+
+            if (close_bracket == NULL || skip_ignorable(close_bracket + 1) != NULL) goto error;
+
+            current_section = section_search(line_start);
+            if (current_section == SEC_NONE) goto error;
 
             if ((current_section == SEC_WATCHER || current_section == SEC_ACTIONS ||
                 current_section == SEC_EVENTS   || current_section == SEC_PARSER)
-                && count.num_rules > 0) {
-                count.line_error = current_line;
-                return count;
-            }
+                && count.num_rules > 0) goto error;
 
-            if (STARTS_WITH(line_start, "[macros.")) {
+            if (current_section == SEC_MACROS) {
+                char *tool_name = line_start + strlen("[macros.");
+                size_t tool_name_len = close_bracket - tool_name;
+
+                if (tool_name_len == 0 || tool_name_len >= MAX_FILENAME_LEN) goto error;
+                if (strcspn(tool_name, " \t") < tool_name_len) goto error;
+
                 tool_has_wildcard = false;
                 count.num_tools++;
             }
@@ -295,50 +362,125 @@ ConfigCount count_and_validate(FILE *ini)
         }
 
         if (current_section == SEC_WATCHER || current_section == SEC_ACTIONS ||
-            current_section == SEC_EVENTS  || current_section == SEC_MACROS) {
-            if (strchr(line_start, '=') == NULL) {
-                count.line_error = current_line;
-                return count;
-            }
+            current_section == SEC_EVENTS  || current_section == SEC_PARSER  ||
+            current_section == SEC_MACROS) {
+            char *equal = strchr(line_start, '=');
+
+            if (equal == NULL || skip_ignorable(equal + 1) == NULL) goto error;
+
             if (current_section == SEC_MACROS) {
-                count.num_macros++;
-
-                char *equal = strchr(line_start, '=');
                 int key_len = (int)(equal - line_start);
-
                 while (key_len > 0 && (line_start[key_len - 1] == ' ' || line_start[key_len - 1] == '\t')) key_len--;
+                if (key_len == 0) goto error;
 
-                // 5 from strlen("{VAR}")
-                if (key_len == 5 && strncmp(line_start, "{VAR}", 5) == 0) {
-                    if (tool_has_wildcard) {
-                        count.line_error = current_line;
-                        return count;
-                    }
+                if (key_len == TAG_VAR_LEN && strncmp(line_start, "{VAR}", TAG_VAR_LEN) == 0) {
+                    if (tool_has_wildcard) goto error;
                     tool_has_wildcard = true;
                 }
+
+                count.num_macros++;
             }
         }
         else if (current_section == SEC_RULES) {
             if (line_start[0] == '>') {
-                if (count.num_rules == 0 || strchr(line_start, '=') == NULL) {
-                    count.line_error = current_line;
-                    return count;
-                }
+                char *equal = strchr(line_start, '=');
+
+                if (count.num_rules == 0 || equal == NULL) goto error;
+                if (skip_ignorable(equal + 1) == NULL) goto error;
                 continue;
             }
 
             char *arrow = strstr(line_start, "->");
             char *colon = strchr(line_start, ':');
+            if (arrow == NULL || colon == NULL || (colon < arrow + 2)) goto error;
 
-            if (arrow == NULL || colon == NULL || (colon < arrow)) {
-                count.line_error = current_line;
-                return count;
-            }
             count.num_rules++;
         }
+        else goto error;
     }
 
     return count;
+
+error:
+    count.line_error = current_line;
+    return count;
+}
+
+// 2nd pass: fill the allocated structs and validate values
+bool fill_config_data(FILE *ini)
+{
+    char line[MAX_CMD_LEN];
+    Section current_section = SEC_NONE;
+    int current_line = 0;
+
+    Rules  *current_rule  = config.rules;
+    Tools  *current_tool  = NULL;
+    Macros *current_macro = config.macros;
+
+    while (fgets(line, sizeof(line), ini) != NULL) {
+        current_line++;
+
+        char *line_start = skip_ignorable(line);
+        if (line_start == NULL) continue;
+
+        if (line_start[0] == '[') {
+            current_section = section_search(line_start);
+
+            if (current_section == SEC_MACROS) {
+                char *close_bracket = strchr(line_start, ']');
+                if (close_bracket != NULL) *close_bracket = '\0';
+
+                if (current_tool == NULL) current_tool = config.tools;
+                else                      current_tool = current_tool + 1;
+
+                snprintf(current_tool->name, MAX_FILENAME_LEN, "%s", line_start + strlen("[macros."));
+                current_tool->macros   = current_macro;
+                current_tool->ini_line = current_line;
+            }
+            continue;
+        }
+
+        if (current_section == SEC_WATCHER || current_section == SEC_ACTIONS ||
+            current_section == SEC_EVENTS  || current_section == SEC_PARSER) {
+            if (!parse_property_line(line_start, NULL)) goto error;
+        }
+        else if (current_section == SEC_RULES) {
+            if (line_start[0] == '>') {
+                Rules *last_rule = current_rule - 1;
+
+                if (!last_rule->local.is_local) {
+                    last_rule->local = config.global;
+                    last_rule->local.is_local = true;
+                }
+                if (!parse_property_line(line_start + 1, last_rule)) goto error;
+            }
+            else {
+                if (!parse_rule_line(line_start, current_rule)) goto error;
+                current_rule->local = config.global;
+                current_rule++;
+            }
+        }
+
+        else if (current_section == SEC_MACROS) {
+            if (!parse_macro_line(line_start, current_macro, current_line)) goto error;
+
+            current_tool->num_macros_local++;
+
+            if      (!current_macro->has_var)           current_tool->num_pure++;
+            else if (current_macro->key_1st[0] != '\0') current_tool->num_prefix++;
+            else if (current_macro->key_2nd[0] == '\0') current_tool->has_wildcard = true;
+
+            if (current_macro->value[0] == '@') current_tool->has_override = true;
+
+            current_macro++;
+        }
+    }
+
+    return true;
+
+error:
+    config.count.line_error = current_line;
+    return false;
 }
 
 // Sorting stuff ---> start here
@@ -507,15 +649,30 @@ bool are_macros_ambiguous(const Macros *macro_a, const Macros *macro_b)
     return (diff_prefix * diff_suffix) < 0;
 }
 
-bool validate_macros() {
+int line_ahead(int a, int b)
+{
+    if (a > b) return a;
+    else       return b;
+}
+
+bool validate_macros()
+{
     for (int t = 0; t < config.count.num_tools; t++) {
         const Tools *tool = &config.tools[t];
 
+        // Do not allow two sections with the same name
+        if (t > 0 && strcmp(tool->name, config.tools[t - 1].name) == 0) {
+            config.count.line_error = line_ahead(tool->ini_line, config.tools[t - 1].ini_line);
+            return false;
+        }
+
+        // Must have at least 2 macros to check
         if (tool->num_macros_local < 2) continue;
 
         // Compare already sorted pure macros
         for (int i = 0; i < tool->num_macros_local - 1; i++) {
             if (are_macros_equal(&tool->macros[i], &tool->macros[i + 1])) {
+                config.count.line_error = line_ahead(tool->macros[i].ini_line, tool->macros[i + 1].ini_line);
                 return false;
             }
         }
@@ -534,7 +691,10 @@ bool validate_macros() {
 
         for (int i = start; i < suffix_start; i++) {
             for (int j = i + 1; j < end; j++) {
-                if (are_macros_ambiguous(&tool->macros[i], &tool->macros[j])) return false;
+                if (are_macros_ambiguous(&tool->macros[i], &tool->macros[j])) {
+                    config.count.line_error = line_ahead(tool->macros[i].ini_line, tool->macros[j].ini_line);
+                    return false;
+                }
             }
         }
     }
@@ -547,113 +707,42 @@ bool load_config(const char *filepath)
     set_config_default();
 
     FILE *ini = open_file(filepath, "r");
-    if (ini == NULL) return false;
-
-    char line[MAX_CMD_LEN];
-    Section current_section = SEC_NONE;
-
-    // 1st loop: count rules, tools and macros -- to allocate memory later
-    config.count = count_and_validate(ini);
-    if (config.count.line_error > 0) {
-        fclose(ini);
+    if (ini == NULL) {
+        config.count.line_error = -1;
         return false;
     }
 
-    // Pointers to move through allocated memory
-    Rules *current_rule = NULL;
-    Tools *current_tool = NULL;
-    Macros *current_macro = NULL;
+    config.count = count_and_validate(ini);
+    if (config.count.line_error > 0) goto error;
 
     // All counted, time to allocate
     if (config.count.num_rules > 0) {
         config.rules = calloc(config.count.num_rules, sizeof(Rules));
-        current_rule = config.rules;
+        if (config.rules == NULL) {config.count.line_error = -1; goto error;}
     }
 
     if (config.count.num_tools > 0) {
         config.tools = calloc(config.count.num_tools, sizeof(Tools));
-        current_tool = config.tools;
+        if (config.tools == NULL) {config.count.line_error = -1; goto error;}
     }
 
     if (config.count.num_macros > 0) {
         config.macros = calloc(config.count.num_macros, sizeof(Macros));
-        current_macro = config.macros;
+        if (config.macros == NULL) {config.count.line_error = -1; goto error;}
     }
 
     rewind(ini);
-    current_section = SEC_NONE;
-
-    // 2nd loop: fill the data
-    while (fgets(line, sizeof(line), ini) != NULL) {
-        char *line_start = line;
-        while (*line_start == ' ' || *line_start == '\t') line_start++;
-
-        if (line_start[0] == '#'    || line_start[0] == ';' ||
-            line_start[0] == '\n'   || line_start[0] == '\r' ||
-            line_start[0] == '\0')  continue;
-
-        if (line_start[0] == '[') {
-            current_section = section_search(line_start, current_section);
-
-            if (current_section == SEC_MACROS) {
-                // Found a new tool
-                char *final_bracket = strrchr(line_start, ']');
-                if (final_bracket != NULL) *final_bracket = '\0';
-
-                if (STARTS_WITH(line_start, "[macros.")) current_tool++;
-
-                snprintf(current_tool->name, MAX_FILENAME_LEN, "%s", line_start + (sizeof("[macros.") - 1));
-                current_tool->macros = current_macro;
-            }
-            continue;
-        }
-
-        if (current_section == SEC_WATCHER || current_section == SEC_ACTIONS ||
-            current_section == SEC_EVENTS  || current_section == SEC_PARSER) {
-            parse_property_line(line_start, NULL);
-        }
-
-        else if (current_section == SEC_RULES) {
-            if (line_start[0] == '>' && current_rule > config.rules) {
-                Rules *last_rule = current_rule - 1;
-
-                if (!last_rule->local.is_local) {
-                    last_rule->local = config.global;
-                    last_rule->local.is_local = true;
-                }
-
-                line_start++;
-                while (*line_start == ' ' || *line_start == '\t') line_start++;
-
-                parse_property_line(line_start, last_rule);
-            }
-
-            else if (parse_rule_line(line_start, current_rule)) {
-                current_rule->local = config.global;
-                current_rule++;
-            }
-        }
-
-        else if (current_section == SEC_MACROS && current_tool->name[0] != '\0') {
-            if (parse_macro_line(line_start, current_macro)) {
-                current_tool->num_macros_local++;
-
-                if (!current_macro->has_var) current_tool->num_pure++;
-                else if (current_macro->key_1st[0] != '\0') current_tool->num_prefix++;
-                else if (current_macro->key_2nd[0] == '\0') current_tool->has_wildcard = true;
-
-                if (current_macro->value[0] == '@') current_tool->has_override = true;
-
-                current_macro++;
-            }
-        }
-    }
+    if (!fill_config_data(ini)) goto error;
 
     sort_config_file();
+    if (!validate_macros()) goto error;
 
-    if (!validate_macros()) {fclose(ini); return false;}
     link_pointers();
-
     fclose(ini);
     return true;
+
+error:
+    free_config_struct();
+    fclose(ini);
+    return false;
 }
