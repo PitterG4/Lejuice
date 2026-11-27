@@ -286,7 +286,6 @@ bool parse_macro_line(char *line, Macros *macro, int line_num)
 {
     char *equal = strchr(line, '=');
     if (equal == NULL) return false;
-
     *equal = '\0';
 
     char *key_part   = trim(line);

@@ -5,7 +5,7 @@
 void free_config_struct();
 
 ReplaceAction set_replace_tag(const char *token);
-MacroMatch set_macro_match_tag(const char *token);
+FallbackAction set_fallback_tag(const char *token);
 
 int comp_rules(const void *a, const void *b);
 int comp_tools(const void *a, const void *b);
