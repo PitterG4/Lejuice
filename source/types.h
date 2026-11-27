@@ -170,6 +170,7 @@ typedef struct {
     char key_2nd[MAX_PARAMS_LEN];
     bool has_var;
 
+    int ini_line;
     struct Tools *override;
 } Macros;
 
@@ -184,6 +185,8 @@ typedef struct Tools {
 
     bool has_override;
     bool has_wildcard;
+    
+    int ini_line;
 } Tools;
 
 typedef struct {
