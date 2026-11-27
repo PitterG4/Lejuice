@@ -8,13 +8,15 @@
 #include "system.h"
 
 #define STARTS_WITH(text, prefix) (strncmp(text, prefix, sizeof(prefix) - 1) == 0)
-#define REPLACE_TAG(tag, replacement) {                                                 \
-    copy += snprintf(copy, MAX_CMD_LEN - (copy - final_command), "%s", (replacement));  \
-    original += sizeof(tag) - 1;                                                        \
+#define REPLACE_TAG_LEN(tag, str_len, replacement) {                                \
+    int remaining = MAX_CMD_LEN - (copy - final_command);                           \
+    int written = snprintf(copy, remaining, "%.*s", (int)(str_len), (replacement)); \
+    if (written < 0 || written >= remaining) return false;                          \
+    copy += written;                                                                \
+    original += sizeof(tag) - 1;                                                    \
 }
-#define REPLACE_TAG_LEN(tag, str_len, replacement) {                                                \
-    copy += snprintf(copy, MAX_CMD_LEN - (copy - final_command), "%.*s", (str_len), (replacement)); \
-    original += sizeof(tag) - 1;                                                                    \
+#define REPLACE_TAG(tag, replacement) {                                             \
+    REPLACE_TAG_LEN(tag, strlen(replacement), replacement);                         \
 }
 
 // Main parser
@@ -186,13 +188,16 @@ bool extract_var_macro(const char *token, const Macros *macro, char *translated_
 
     while (*original != '\0') {
         if (STARTS_WITH(original, "{VAR}")) {
-            copy += snprintf(copy, MAX_CMD_LEN - (copy - translated_token), "%s", var_str);
-            original += sizeof("{VAR}") - 1;
+            int remaining = MAX_CMD_LEN - (copy - translated_token);
+            int written = snprintf(copy, MAX_CMD_LEN - (copy - translated_token), "%s", var_str);
+            if (written < 0 || written >= remaining) return false;
+
+            copy += written;
+            original += TAG_VAR_LEN;
         }
         else {
-            *copy = *original;
-            copy++;
-            original++;
+            if ((copy - translated_token + 1) >= MAX_CMD_LEN) return false;
+            *(copy++) = *(original++);
         }
     }
 
@@ -260,15 +265,29 @@ Macros *translate_macro(const char *token, Tools *tool, MacroMatch match_type, c
 
 char *get_next_token(const char *input, char *token_out)
 {
-    char *next = strpbrk(input, " ,\t");
+    const char *separator = " ,\t";
+    if      (config.param_separator == SEP_SPACE) separator =  " \t";
+    else if (config.param_separator == SEP_COMMA) separator = ",";
+
+    char *next = strpbrk(input, separator);
 
     if (next != NULL) {
-        snprintf(token_out, (next - input) + 1, "%s", input);
-        while (*next == ' ' || *next == ',' || *next == '\t') next++;
+        size_t len = (size_t)(next - input);
+        if (len >= MAX_PARAMS_LEN) goto error;
+
+        snprintf(token_out, len + 1, "%s", input);
+        while (*next != '\0' && strchr(separator, *next) != NULL) next++;
     }
-    else snprintf(token_out, MAX_PARAMS_LEN, "%s", input);
+    else {
+        if (strlen(input) >= MAX_PARAMS_LEN) goto error;
+        snprintf(token_out, MAX_PARAMS_LEN, "%s", input);
+    }
 
     return next;
+
+error:
+    token_out[0] = '\0';
+    return NULL;
 }
 
 // Eg: input = "mute 720p", tool = ffmpeg (struct)
@@ -280,15 +299,17 @@ bool expand_macros(const char *input, Rules *rule, char *out_macros, char *out_t
 
     Tools *active_override = NULL;
     char token[MAX_PARAMS_LEN] = {0};
+    char *copy = out_macros;
 
     while (input != NULL && input[0] != '\0') {
         input = get_next_token(input, token);
+        if (token[0] == '\0') return false;
 
         if (token[0] == '#') {
             int flag = set_replace_tag(token + 1);
             if (flag >= 0) {rule->local.replace = flag; continue;}
 
-            flag = set_macro_match_tag(token + 1);
+            flag = set_fallback_tag(token + 1);
             if (flag >= 0) {rule->local.fallback = flag; continue;}
 
             return false;
@@ -303,12 +324,14 @@ bool expand_macros(const char *input, Rules *rule, char *out_macros, char *out_t
 
         if (translated_token[0] == '@') {
             snprintf(out_template, MAX_CMD_LEN, "%s", translated_token);
-
             if (matched != NULL && matched->override != NULL) active_override = matched->override;
         }
         else {
-            char *end = strchr(out_macros, '\0');
-            snprintf(end, MAX_PARAMS_LEN - (end - out_macros), "%s ", translated_token);
+            int remaining = MAX_CMD_LEN - (copy - out_macros);
+            int written = snprintf(copy, remaining, "%s ", translated_token);
+            if (written < 0 || written >= remaining) return false;
+
+            copy += written;
         }
     }
 
@@ -317,7 +340,7 @@ bool expand_macros(const char *input, Rules *rule, char *out_macros, char *out_t
 
 bool parse_command(Rules *rule, FileEvent *file_event, char *final_command)
 {
-    char final_params[MAX_PARAMS_LEN] = {0};
+    char final_params[MAX_CMD_LEN] = {0};
     char override_template[MAX_CMD_LEN] = {0};
     char *copy = final_command;
 
@@ -336,21 +359,21 @@ bool parse_command(Rules *rule, FileEvent *file_event, char *final_command)
         }
 
         switch (current_tag) {
-            case TAG_IN:        REPLACE_TAG("${IN}",        file_event->old_filepath);  break;
-            case TAG_OUT:       REPLACE_TAG("${OUT}",       file_event->out_filepath);  break;
-            case TAG_ARGS:      REPLACE_TAG("${ARGS}",      final_params);              break;
+            case TAG_IN:        REPLACE_TAG("${IN}",        file_event->old_filepath)  break;
+            case TAG_OUT:       REPLACE_TAG("${OUT}",       file_event->out_filepath)  break;
+            case TAG_ARGS:      REPLACE_TAG("${ARGS}",      final_params)              break;
 
-            case TAG_INSTALL:   REPLACE_TAG("$/",           config.install_path);       break;
-            case TAG_PARAMS:    REPLACE_TAG("${PARAMS}",    file_event->inline_params); break;
-            case TAG_DIR:       REPLACE_TAG_LEN("${DIR}",   file_event->old_dir_len, file_event->old_filepath); break;
+            case TAG_INSTALL:   REPLACE_TAG("$/",           config.install_path)       break;
+            case TAG_PARAMS:    REPLACE_TAG("${PARAMS}",    file_event->inline_params) break;
+            case TAG_DIR:       REPLACE_TAG_LEN("${DIR}",   file_event->old_dir_len, file_event->old_filepath) break;
 
-            case TAG_IN_NAME:   REPLACE_TAG("${IN_NAME}",   file_event->old_filename);  break;
-            case TAG_IN_BASE:   REPLACE_TAG("${IN_BASE}",   file_event->old_base_name); break;
-            case TAG_IN_EXT:    REPLACE_TAG("${IN_EXT}",    file_event->old_ext);       break;
+            case TAG_IN_NAME:   REPLACE_TAG("${IN_NAME}",   file_event->old_filename)  break;
+            case TAG_IN_BASE:   REPLACE_TAG("${IN_BASE}",   file_event->old_base_name) break;
+            case TAG_IN_EXT:    REPLACE_TAG("${IN_EXT}",    file_event->old_ext)       break;
 
-            case TAG_OUT_NAME:  REPLACE_TAG("${OUT_NAME}",  file_event->new_filename);  break;
-            case TAG_OUT_BASE:  REPLACE_TAG("${OUT_BASE}",  file_event->new_base_name); break;
-            case TAG_OUT_EXT:   REPLACE_TAG("${OUT_EXT}",   file_event->new_ext);       break;
+            case TAG_OUT_NAME:  REPLACE_TAG("${OUT_NAME}",  file_event->new_filename)  break;
+            case TAG_OUT_BASE:  REPLACE_TAG("${OUT_BASE}",  file_event->new_base_name) break;
+            case TAG_OUT_EXT:   REPLACE_TAG("${OUT_EXT}",   file_event->new_ext)       break;
 
             default: {
                 *copy = *original;
